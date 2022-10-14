@@ -1,0 +1,152 @@
+# ##########
+#
+# Outer loop deployment pipeline
+# - Generate deployment template by populating the variables
+# - Deploy to IoT Edge
+# - Smoke Test
+#
+# ##########
+trigger: none
+
+pool:
+  vmImage: ubuntu-latest
+
+# parameters:
+# - name: envSelection
+#   displayName: Environment Selection
+#   type: string
+#   default: dev
+#   values:
+#   - dev
+#   - stg
+#   - prod
+# - name: objectDetectionDockerVersion
+#   displayName: Object Detection Docker Version
+# - name: imageClassificationDockerVersion
+#   displayName: Image Classification Docker Version
+# - name: smokeTestDockerVersion
+#   displayName: Smoke Test Docker Version
+
+variables:
+# - group: outer-loop-${{parameters.envSelection}}
+- group: iot-ning-dev
+- name: mydate
+  value: $[format('{0:yyyyMMddHHmmss}', pipeline.startTime)]
+
+
+stages:
+- stage: 'Generate_Edge_Deployment_Manifest'
+  displayName: 'Generate Edge Deployment Manifest'
+  jobs:
+  - job: 'Generate_Edge_Deployment_Manifest'
+    displayName: 'Generate Edge Deployment Manifest'
+    steps:
+    - task: UsePythonVersion@0
+      displayName: 'Use Python 3.8'
+      inputs:
+        versionSpec: '3.8'
+    - task: Bash@3
+      displayName: Add Azure IoT Extensions
+      inputs:
+        targetType: 'inline'
+        script: 'pip install -U iotedgedev'
+
+    - task: AzureIoTEdge@2
+      displayName: 'Generate Edge Deployment Manifest'
+      inputs:
+        action: 'Generate deployment manifest'
+        templateFilePath: '$(System.DefaultWorkingDirectory)/devops/edge/deployment.template.json'
+        defaultPlatform: 'amd64'
+        deploymentManifestOutputPath: '$(System.DefaultWorkingDirectory)/edgeconfig/config/deployment.json'
+        validateGeneratedDeploymentManifest: 'true'
+      # env:
+      #   CONTAINER_REGISTRY_NAME: jfrog
+      #   CONTAINER_REGISTRY_USERNAME: $(jfrog-application-account)
+      #   CONTAINER_REGISTRY_PASSWORD: $(jfrog-application-password)
+      #   CONTAINER_REGISTRY_ADDRESS: $(artifactoryName)
+      #   OBJECT_DETECTION_DOCKER_NAME: $(objectDetectionDockerName)
+      #   OBJECT_DETECTION_DOCKER_VERSION: ${{parameters.objectDetectionDockerVersion}}
+      #   IMAGE_CLASSIFICATION_DOCKER_NAME: $(imageClassificationDockerName)
+      #   IMAGE_CLASSIFICATION_DOCKER_VERSION: ${{parameters.imageClassificationDockerVersion}}
+      #   SMOKE_TEST_DOCKER_NAME: $(smokeTestDockerName)
+      #   SMOKE_TEST_DOCKER_VERSION: ${{parameters.smokeTestDockerVersion}}
+
+    - task: CopyFiles@2
+      displayName: Copy Edge Deployment Manifest
+      inputs:
+        contents: 'config/**'
+        targetFolder: $(Build.ArtifactStagingDirectory)
+        cleanTargetFolder: true
+        sourceFolder: $(System.DefaultWorkingDirectory)/edgeconfig
+
+    - task: PublishBuildArtifacts@1
+      displayName: Publish Manifest To Artifacts
+      inputs:
+        pathToPublish: $(Build.ArtifactStagingDirectory)
+        artifactName: DeploymentManifest
+
+- stage: 'Deploy_IoT_Edge'
+  displayName: 'Deploy Images To Edge Device'
+  dependsOn: Generate_Edge_Deployment_Manifest
+  condition: succeeded('Generate_Edge_Deployment_Manifest')
+  jobs:
+  - job: 'Deploy_IoT_Edge'
+    displayName: 'Deploy Images To Edge Device'
+    steps:
+    - task: Bash@3
+      displayName: Add Azure IoT Extensions
+      inputs:
+        targetType: 'inline'
+        script: 'pip install -U iotedgedev'
+
+    - task: DownloadBuildArtifacts@0
+      inputs:
+        buildType: 'current'
+        specificBuildWithTriggering: false 
+        buildVersionToDownload: 'latest'
+        artifactName: DeploymentManifest
+        downloadPath: '$(System.ArtifactsDirectory)' 
+        cleanDestinationFolder: true # Optional
+
+    #- task: AzureIoTEdge@2
+    #  displayName: 'Deploy To IoT Edge Devices'
+    #  inputs:
+    #    action: 'Deploy to IoT Edge devices'
+    #    deploymentFilePath: $(System.ArtifactsDirectory)/DeploymentManifest/config/deployment.json
+    #    azureSubscription: $(AzureCNSCName)
+    #    iothubname: $(IOTHUB_NAME)
+    #    deploymentid: '$(System.TeamProject)-devops-deployment'
+    #    priority: '1'
+    #    deviceOption: 'Single Device'
+    #    deviceId: $(EDGE_DEVICE_ID)
+
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AzureCNSCName)
+        scriptType: 'pscore'
+        scriptLocation: 'inlineScript'
+        failOnStandardError: false
+        inlineScript: |
+          az extension add --name azure-iot;
+          az iot edge deployment create -n '$(IOTHUB_NAME)' --content $(System.ArtifactsDirectory)/DeploymentManifest/config/deployment.json --target-condition "deviceId='$(EDGE_DEVICE_ID)'" --priority '1' -d '$(mydate)$(Build.Buildid)'
+    # az iot edge deployment create -n 'smoketestiothub' --content $(System.ArtifactsDirectory)/DeploymentManifest/config/deployment.json --target-condition "deviceId='ningtest'" --priority '1' -d '$(mydate)$(Build.Buildid)'
+    # - task: AzureCLI@2
+    #   inputs:
+    #     azureSubscription: $(AzureCNSCName)
+    #     scriptType: 'bash'
+    #     scriptLocation: 'inlineScript'
+    #     failOnStandardError: false
+    #     inlineScript: |
+    #       sleep 30;
+    #       echo "Test result of Object Detection Module:";
+    #       return_code_det=$(az iot hub invoke-module-method -n $(IOTHUB_NAME) -d $(EDGE_DEVICE_ID) -m 'TestModule' --method-name 'smokeTest' --method-payload "{'port': 5001}" | jq .status);
+    #       echo $(az iot hub invoke-module-method -n $(IOTHUB_NAME) -d $(EDGE_DEVICE_ID) -m 'TestModule' --method-name 'smokeTest' --method-payload "{'port': 5001}");
+    #       sleep 3;
+    #       echo "Test result of Image Classification Module:";
+    #       return_code_cla=$(az iot hub invoke-module-method -n $(IOTHUB_NAME) -d $(EDGE_DEVICE_ID) -m 'TestModule' --method-name 'smokeTest' --method-payload "{'port': 5002}" | jq .status);
+    #       echo $(az iot hub invoke-module-method -n $(IOTHUB_NAME) -d $(EDGE_DEVICE_ID) -m 'TestModule' --method-name 'smokeTest' --method-payload "{'port': 5002}");
+    #       if [[ $return_code_det != 200 || $return_code_cla != 200 ]]; then exit 1; fi
+
+
+#if [[ $return_code_det != 200 || $return_code_cla != 200 ]]; then exit 1; fi
+#return_code_det=$($return_msg_det | jq .status)  
