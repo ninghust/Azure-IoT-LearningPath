@@ -1,1 +1,1 @@
-# AzureIoTLearningPath
+# Azure-IoT-LearningPath
