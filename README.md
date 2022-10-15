@@ -7,6 +7,7 @@
 ## Prerequisites
 - An Azure subscription, create a resource group and IoT hub
 - Git Bash, WSL
+- Azure CLI and install IoT extension
 
 ## Create IoT Edge Device
 In this section, we need two steps:
