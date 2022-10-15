@@ -76,3 +76,44 @@ az iot edge deployment create -d firstTryDeployment -n smoketestiothub --content
 
 > 💡[Troubleshoot your IoT Edge device](https://learn.microsoft.com/en-us/azure/iot-edge/troubleshoot?view=iotedge-1.4 "Troubleshoot your IoT Edge device")
 
+
+## Build a Pipeline to deploy modules
+ - [Create a Service connection](https://learn.microsoft.com/en-us/azure/devops/pipelines/library/service-endpoints?view=azure-devops&tabs=yaml#create-a-service-connection "Create a Service connection")
+ - Create Azure Pipeline YAML File
+   - Sample code: [deploy-iot-modules-to-edge-server.yml](https://github.com/ninghust/Azure-IoT-LearningPath/blob/main/pipeline/deploy-iot-modules-to-edge-server.yml "deploy-iot-modules-to-edge-server.yml")
+
+- Create Azure Pipeline with Existing YAML File and Run
+- 💡Troubleshooting:
+  1. Service connection is must-have. 'azureSubscription' is refer to service connection name **NOT** subscription name
+     ```yaml
+     - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(AzureCNSCName)
+        scriptType: 'pscore'
+        scriptLocation: 'inlineScript'
+        failOnStandardError: false
+        inlineScript: |
+          az extension add --name azure-iot;
+          az iot edge deployment create -n '$(IOTHUB_NAME)' --content $(System.ArtifactsDirectory)/DeploymentManifest/config/deployment.json --target-condition "deviceId='$(EDGE_DEVICE_ID)'" --priority '1' -d '$(mydate)$(Build.Buildid)'```
+  2. When running pipeline, the following error happens:
+     ```bash
+     Start generating deployment manifest...
+     /home/vsts/work/1/s/devops/edge /home/vsts/work/1/s
+     ##[error]/usr/lib/python3/dist-packages/requests/__init__.py:89: RequestsDependencyWarning: urllib3 (1.26.12) or chardet (3.0.4) doesn't match a supported version!
+     ``` 
+      Upgrade Python: Use Python 3.8 to resolve it
+      ```yaml
+      - task: UsePythonVersion@0
+        displayName: 'Use Python 3.8'
+        inputs:
+          versionSpec: '3.8'
+      ```
+  
+
+>❤️Useful Links: 
+>- [Continuous integration and continuous deployment to Azure IoT Edge devices](https://learn.microsoft.com/en-us/azure/iot-edge/how-to-continuous-integration-continuous-deployment?view=iotedge-1.4 "Continuous integration and continuous deployment to Azure IoT Edge devices")
+>- [Specify jobs in your pipeline](https://learn.microsoft.com/en-us/azure/devops/pipelines/process/phases?view=azure-devops&tabs=yaml "Specify jobs in your pipeline")
+>- [Add & use variable groups](https://learn.microsoft.com/en-us/azure/devops/pipelines/library/variable-groups?view=azure-devops&tabs=yaml "Add & use variable groups")
+
+
+    
