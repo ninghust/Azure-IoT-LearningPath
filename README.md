@@ -49,3 +49,30 @@ sudo iotedge check //Verify configuration and connection status of the device
 sudo iotedge list //View all the modules running on your IoT Edge device
 ```
 >❤️Tip: use `sudo` in front of the commands
+
+## Configure a Deployment manifest
+1. [Deployment manifest example](https://github.com/ninghust/Azure-IoT-LearningPath/blob/main/edge/deployment.template.json "Deployment manifest example")
+>file name: XXX.template.json
+
+2. Generate a deployment manifest (. json)
+Formatting using VS code **Azure IoT tool extension** to generate or (build deployment.template.json), the formatted manifest will be under ./config
+
+## Deploy Module to Single Device via Azure CLI
+1. Make sure in correct subscription
+```bash
+   az account show --output table  //Show current subscription
+   az account set --subscription "My Demos" //change the active subscription using the subscription name
+   az account set --subscription "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" //change the active subscription using the subscription ID
+```
+2. Deploy module
+```bash
+az iot edge deployment create -d firstTryDeployment -n smoketestiothub --content deployment.amd64.json --target-condition "deviceId='ningtest'"
+// firstTryDeployment: deployment ID   smoketestiothub: IoT hub name deployment.amd64.json: deployment manifest
+```
+3. Verify the deployment created
+![image](https://user-images.githubusercontent.com/113426179/195991592-0d4f5d35-4896-41a7-b690-26212330f326.png)
+
+4. Check whether the module is deployed: Verify that the module is deployed in your IoT Hub in the Azure portal. Select your device, select **Set Modules** and the module should be listed in the **IoT Edge Modules** section.
+
+> 💡[Troubleshoot your IoT Edge device](https://learn.microsoft.com/en-us/azure/iot-edge/troubleshoot?view=iotedge-1.4 "Troubleshoot your IoT Edge device")
+
