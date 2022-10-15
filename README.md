@@ -28,7 +28,4 @@ chmod 400 ~/Downloads/myKey.pem   //set read-only permission on the .pem file
 ssh -i ~/Downloads/myKey.pem azureuser@10.111.12.123    //ssh to created VM
 ```
 
-![VM](https://user-images.githubusercontent.com/113426179/195983329-a2a4887a-8c86-4d1d-8122-e4fd8b504ac6.png "VM")
-
-
 >❤️Tip: The SSH key you created can be used the next time your create a VM in Azure. Just select the **Use a key stored in Azure** for **SSH public key source** the next time you create a VM.
